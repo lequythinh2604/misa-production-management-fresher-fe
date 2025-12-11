@@ -23,8 +23,10 @@
           'has-icon-left': $slots['icon-left'],
           'has-icon-right': $slots['icon-right'],
           'ms-disabled': isDisabled,
+          'text-red': isWarning,
         }"
         :tabindex="tabIndex"
+        :readonly="readOnly"
         :disabled="isDisabled"
         :style="[placeholderStyle]"
         :maxlength="maxLength"
@@ -88,7 +90,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  readOnly: {
+    type: Boolean,
+    default: false,
+  },
   isError: {
+    type: Boolean,
+    default: false,
+  },
+  isWarning: {
     type: Boolean,
     default: false,
   },
@@ -154,6 +164,9 @@ const shouldShowErrorBorder = computed(() => {
 }
 .text-required {
   color: #e54848;
+}
+.text-red {
+  color: #ff0000 !important;
 }
 .ms-input-container {
   border: 1px solid #d1d5db;

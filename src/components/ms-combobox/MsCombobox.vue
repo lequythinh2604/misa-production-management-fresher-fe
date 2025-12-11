@@ -1,10 +1,6 @@
 <template>
   <div class="ms-combobox" ref="comboBoxRef">
-    <div
-      class="ms-combobox__trigger"
-      :class="{ 'ms-combobox__trigger--active': isDropdownOpen }"
-      @click="toggleDropdown"
-    >
+    <div class="ms-combobox__trigger" :class="{ 'ms-combobox__trigger--active': isDropdownOpen }">
       <input
         type="text"
         v-model="searchText"
@@ -57,7 +53,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import { onClickOutside } from "@vueuse/core";
 
 // defineModel
-const model = defineModel("operator", { required: true });
+const model = defineModel();
 
 // props
 const props = defineProps({
@@ -78,8 +74,10 @@ const searchText = ref("");
 const highlightedIndex = ref(-1);
 const comboBoxRef = ref(null);
 
-// 1. Logic Tính toán (Computed)
-
+/**
+ * Tính toán tìm kiếm
+ * Created by: LQThinh (09/12/2025)
+ */
 const filteredOptions = computed(() => {
   if (!searchText.value) {
     return props.options;
@@ -87,8 +85,6 @@ const filteredOptions = computed(() => {
   const searchLower = searchText.value.toLowerCase();
   return props.options.filter((option) => option.label.toLowerCase().includes(searchLower));
 });
-
-// METHODS
 /**
  * Xử lý giá trị mặc định từ 'selected: true'
  * Created by: LQThinh (06/12/2025)
@@ -96,36 +92,31 @@ const filteredOptions = computed(() => {
 watch(
   () => props.options,
   (newOptions) => {
-    // Chỉ thiết lập giá trị mặc định nếu model chưa được thiết lập (null/undefined)
-    if (model.value === null || model.value === undefined) {
-      const defaultOption = newOptions.find((o) => o.selected === true);
-      if (defaultOption) {
-        model.value = defaultOption.value;
-      }
-    }
-  },
-  { immediate: true }
-);
-
-/**
- * Cập nhật searchText khi modelValue thay đổi
- * Created by: LQThinh (06/12/2025)
- */
-watch(
-  model,
-  (newValue) => {
-    if (newValue !== null && newValue !== undefined) {
-      const selectedOption = props.options.find((o) => o.value === newValue);
-      if (selectedOption) {
-        searchText.value = selectedOption.label;
-      }
+    const defaultOption = newOptions.find((o) => o.selected === true);
+    if (defaultOption) {
+      model.value = defaultOption.value;
+      searchText.value = defaultOption.label;
     } else {
+      model.value = null;
       searchText.value = "";
     }
   },
   { immediate: true }
 );
-
+/**
+ * Cập nhật searchText khi modelValue thay đổi
+ * Created by: LQThinh (06/12/2025)
+ */
+watch(model, (newValue) => {
+  if (newValue !== null && newValue !== undefined) {
+    const selectedOption = props.options.find((o) => o.value === newValue);
+    if (selectedOption) {
+      searchText.value = selectedOption.label;
+    }
+  } else {
+    searchText.value = "";
+  }
+});
 /**
  * Mở/Đóng Dropdown
  * Created by: LQThinh (06/12/2025)
@@ -134,17 +125,20 @@ const toggleDropdown = () => {
   isDropdownOpen.value = !isDropdownOpen.value;
   if (isDropdownOpen.value) {
     resetHighlight();
+    searchText.value = "";
   }
 };
 
 /**
- * Chỉ mở Dropdown
+ * Mởở Dropdown
  * Created by: LQThinh (06/12/2025)
  */
 const openDropdown = () => {
   if (!isDropdownOpen.value) {
     isDropdownOpen.value = true;
     resetHighlight();
+
+    searchText.value = "";
   }
 };
 
@@ -167,6 +161,7 @@ const closeDropdown = () => {
 
 /**
  * Xử lý sự kiện nhập, lọc danh sách và mở dropdown
+ * Created by: LQThinh (06/12/2025)
  */
 const filterOptions = () => {
   isDropdownOpen.value = true;
@@ -183,6 +178,7 @@ const filterOptions = () => {
 /**
  * Xử lý chọn một tùy chọn
  * @param {Object} option - Tùy chọn được chọn
+ * Created by: LQThinh (06/12/2025)
  */
 const selectOption = (option) => {
   searchText.value = option.label;
@@ -201,8 +197,8 @@ const resetHighlight = () => {
 
 /**
  * Di chuyển highlight bằng phím mũi tên
- * (Giữ nguyên logic scrolling đã tối ưu)
- * @param {number} direction - Hướng di chuyển (-1: lên, 1: xuống)
+ * @param {number} direction
+ * Created by: LQThinh (06/12/2025)
  */
 const moveHighlight = (direction) => {
   if (!isDropdownOpen.value) {
@@ -241,6 +237,7 @@ const moveHighlight = (direction) => {
 
 /**
  * Xử lý phím Enter
+ * Created by: LQThinh (06/12/2025)
  * Created by: LQThinh (06/12/2025)
  */
 const handleEnter = () => {

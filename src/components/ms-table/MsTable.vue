@@ -29,18 +29,28 @@
                 class="flex-container"
                 :class="col.align == 'right' ? 'justify-end' : 'justify-between'"
               >
-                <span class="truncate">{{ col.title }}</span>
-
+                <div class="flex items-center">
+                  <span class="truncate">{{ col.title }}</span>
+                  <div v-if="col.sortable && getColumnSortDirection(col) !== 'NONE'" class="ml-2">
+                    <div
+                      :class="[
+                        getColumnSortDirection(col) === 'ASC' ? 'icon_arrow-up' : 'icon_arrow-down',
+                        'icon-16',
+                      ]"
+                    ></div>
+                  </div>
+                </div>
                 <div
                   v-if="col.filterable"
                   class="filter-icon-container"
                   @click.stop="toggleFilterMenu(col)"
                 >
-                  <div class="icon_filter--default icon-16"></div>
+                  <div v-if="isColumnFiltered(col)" class="icon_filter--active icon-16"></div>
+                  <div v-else class="icon_filter--default icon-16"></div>
                 </div>
               </div>
 
-              <div v-if="activeHeaderMenu === col.field" class="header-menu">
+              <div v-if="activeHeaderMenu === col.field && col.sortable" class="header-menu">
                 <ul class="menu-list">
                   <li class="menu-item" @click.stop="handleSort(col, 'NONE')">
                     <div class="icon_empty icon-16"></div>
@@ -70,17 +80,32 @@
                 <div class="filter-content flex flex-col gap-4">
                   <div class="filter-title flex items-center justify-between">
                     <span>Lọc {{ col.title }}</span>
-                    <div class="icon_close icon-16 icon-hover"></div>
+                    <div
+                      class="icon_close icon-16 icon-hover"
+                      @click.stop="toggleFilterMenu(col)"
+                    ></div>
                   </div>
                   <div class="flex flex-col gap-2">
-                    <ms-combobox v-model="operator" :options="textConditionOptions"></ms-combobox>
-                    <ms-input placeholder="Nhập giá trị lọc"></ms-input>
+                    <ms-combobox
+                      v-model="filterOperator"
+                      :options="getMenuOptions(col)"
+                    ></ms-combobox>
+                    <ms-input
+                      v-if="col.filterType !== 'enum'"
+                      v-model="filterValue"
+                      placeholder="Nhập giá trị lọc"
+                      :readOnly="filterOperator === 'isnull' || filterOperator === 'notnull'"
+                    ></ms-input>
                   </div>
                   <div class="filter-actions">
-                    <ms-button type="filled-neutral">Bỏ lọc</ms-button>
+                    <ms-button type="filled-neutral" @click.stop="handleCancelFilter(col.field)"
+                      >Bỏ lọc</ms-button
+                    >
                     <div class="flex gap-2">
-                      <ms-button type="outlined">Hủy</ms-button>
-                      <ms-button type="misa">Áp dụng</ms-button>
+                      <ms-button type="outlined" @click.stop="toggleFilterMenu(col)">Hủy</ms-button>
+                      <ms-button type="misa" @click.stop="handleFilterColumn(col)"
+                        >Áp dụng</ms-button
+                      >
                     </div>
                   </div>
                 </div>
@@ -216,33 +241,75 @@ import MsInput from "../ms-input/MsInput.vue";
 import MsButton from "../ms-button/MsButton.vue";
 import { ref, computed, onMounted, watch } from "vue";
 import { STATUS } from "@/enums/Enum";
+import {
+  TEXT_CONDITION_OPTIONS,
+  NUMBER_CONDITION_OPTIONS,
+  STATUS_CONDITION_OPTIONS,
+} from "@/constants/filterConditions";
+import { getLabelByValue } from "@/utils/commonFns";
 
 // props
 const props = defineProps({
   columns: { type: Array, required: true },
   data: { type: Array, required: true },
   loading: { type: Boolean, default: false },
+  sortColumn: { type: Array, default: [] },
+  filterColumn: { type: Array, default: [] },
 });
 
 // emit
-const emit = defineEmits(["openEdit", "doubleClickRow", "action", "update:selectedRows", "sort"]);
+const emit = defineEmits([
+  "openEdit",
+  "doubleClickRow",
+  "action",
+  "update:selectedRows",
+  "sort",
+  "filterColumn",
+  "cancelFilterColumn",
+]);
 
-// ref data
+// state
 const tableData = ref([]);
 const activeHeaderMenu = ref(null);
 const activeFilterMenu = ref(null);
 const activeRowActionMenu = ref(null);
 const activeRow = ref(null);
-const textConditionOptions = ref([
-  { label: "(Trống)", value: "IS NULL" },
-  { label: "(Không trống)", value: "IS NOT NULL" },
-  { label: "Bằng", value: "=" },
-  { label: "Khác", value: "!=" },
-  { label: "Chứa", value: "contains", selected: true },
-  { label: "Không chứa", value: "notcontains" },
-  { label: "Bắt đầu với", value: "START WITH" },
-  { label: "Kết thúc với", value: "END WITH" },
-]);
+const filterOperator = ref(null);
+const filterValue = ref(null);
+/**
+ * Theo dõi giá trị của filterOperator
+ * clear filterValue khi filterOperator check null
+ * Created by: LQThinh (10/12/2025)
+ */
+watch(
+  () => filterOperator.value,
+  (newVal) => {
+    if (newVal === "isnull" || newVal === "notnull") {
+      filterValue.value = null;
+    }
+  }
+);
+/**
+ * Lấy hướng sắp xếp của một cột
+ * @param {object} col - cột
+ * @returns {string} - direction
+ * Created by: ThinhLQ (10/12/2025)
+ */
+const getColumnSortDirection = (col) => {
+  const sortItem = props.sortColumn.find((item) => item.selector === col.field);
+  if (sortItem) {
+    return sortItem.desc ? "DESC" : "ASC";
+  }
+  return "NONE";
+};
+
+const isColumnFiltered = (col) => {
+  const filterItem = props.filterColumn.find((item) => item.columnName === col.field);
+  if (filterItem) {
+    return true;
+  }
+  return false;
+};
 /**
  * Emit danh sách các hàng đã chọn lên component cha
  * Created by: LQThinh (10/12/2025)
@@ -302,8 +369,8 @@ watch(
 );
 /**
  * Hàm style cho header cell
- * @param col
- * @param index
+ * @param {object} col
+ * @param {number} index
  * Created by: LQThinh (09/12/2025)
  */
 const getThStyle = (col, index) => {
@@ -332,11 +399,10 @@ const getThStyle = (col, index) => {
 
   return style;
 };
-
 /**
  * Hàm style cho body cell
- * @param col
- * @param index
+ * @param {object} col
+ * @param {number} index
  * Created by: LQThinh (09/12/2025)
  */
 const getTdStyle = (col, index) => {
@@ -350,9 +416,8 @@ const getTdStyle = (col, index) => {
   }
   return style;
 };
-
 /**
- * Toggle action menu
+ * Đóng/mở action menu
  * @param {number} index - Index của row
  * Created by: LQThinh (09/12/2025)
  */
@@ -365,13 +430,12 @@ const toggleActionMenu = (index) => {
     activeFilterMenu.value = null;
   }
 };
-
 /**
  * Click vào table header cell
- * @param col: table header cell
+ * @param {object} col - cột
  * Created by: LQThinh (05/12/2025)
  */
-const handleHeaderClick = (col, event) => {
+const handleHeaderClick = (col) => {
   if (activeHeaderMenu.value === col.field) {
     activeHeaderMenu.value = null;
   } else {
@@ -379,9 +443,14 @@ const handleHeaderClick = (col, event) => {
     activeFilterMenu.value = null;
   }
 };
-
-const toggleFilterMenu = (col, event) => {
+/**
+ * Đóng/mở filter menu
+ * @param {object} col - cột
+ * Created by: LQThinh (10/12/2025)
+ */
+const toggleFilterMenu = (col) => {
   if (!col.filterable) return;
+  filterValue.value = null;
   if (activeFilterMenu.value === col.field) {
     activeFilterMenu.value = null;
   } else {
@@ -389,30 +458,61 @@ const toggleFilterMenu = (col, event) => {
     activeHeaderMenu.value = null;
   }
 };
-
+/**
+ * Lấy danh sách tùy chọn cho menu lọc dựa trên kiểu dữ liệu của cột
+ * @param {object} col - cột
+ * @returns {array} - danh sách tùy chọn
+ * Created by: LQThinh (11/12/2025)
+ */
+const getMenuOptions = (col) => {
+  if (col.filterType === "number") {
+    return NUMBER_CONDITION_OPTIONS;
+  } else if (col.filterType === "enum") {
+    return STATUS_CONDITION_OPTIONS;
+  }
+  return TEXT_CONDITION_OPTIONS;
+};
+/**
+ * Sắp xếp cột
+ * @param {object} col - cột
+ * @param {string} direction - hướng sắp xếp
+ * Created by: LQThinh (10/12/2025)
+ */
 const handleSort = (col, direction) => {
   emit("sort", col.field, direction);
   activeHeaderMenu.value = null;
+};
+/**
+ * Lọc cột
+ * @param {object} col - cột
+ * Created by: LQThinh (10/12/2025)
+ */
+const handleFilterColumn = (col) => {
+  const label = getLabelByValue(getMenuOptions(col), filterOperator.value);
+  emit("filterColumn", col, filterOperator.value, filterValue.value, label);
+  activeFilterMenu.value = null;
 };
 
 const handlePinning = (col, fixedSide) => {
   console.log(`Pinning column ${col.field} to ${fixedSide}`);
   activeHeaderMenu.value = null;
 };
-
+/**
+ * Style khi click vào row
+ * @param {number} index
+ * Created by: LQThinh (09/12/2025)
+ */
 const clickRow = (index) => {
   activeRow.value = index;
 };
-
 /**
  * Xử lý sự kiện mở popup sửa
- * @param row - dữ liệu row
+ * @param {object} row - dữ liệu row
  * Created by: LQThinh (09/12/2025)
  */
 const handleOpenEditPopup = (row) => {
   emit("openEdit", row);
 };
-
 /**
  * Xử lý sự kiện Double-click vào row
  * @param {object} row - row đc click
@@ -421,7 +521,6 @@ const handleOpenEditPopup = (row) => {
 const handleRowDoubleClick = (row) => {
   emit("doubleClickRow", row);
 };
-
 /**
  * Xử lý các hành động (Nhân bản, Sử dụng, Xóa)
  * @param {string} action - Hành động được chọn
@@ -442,26 +541,34 @@ const unselectAll = () => {
   });
   emitSelectedRows();
 };
+/**
+ * Xử lý sự kiện bỏ lọc cột
+ * @param {string} field - tên trường
+ * Created by: LQThinh (11/12/2025)
+ */
+const handleCancelFilter = (field) => {
+  emit("cancelFilterColumn", field);
+};
+/**
+ * Gán sự kiện khi click ra ngoài
+ * Created by: LQThinh (09/12/2025)
+ */
+const handleClickOutside = () => {
+  if (activeHeaderMenu.value || activeFilterMenu.value) {
+    activeHeaderMenu.value = null;
+    activeFilterMenu.value = null;
+  }
+  if (activeRowActionMenu.value !== null) {
+    activeRowActionMenu.value = null;
+  }
+};
 
 defineExpose({
   unselectAll,
+  filterValue,
 });
 
 onMounted(() => {
-  /**
-   * Gán sự kiện khi click ra ngoài
-   * @param event
-   * Created by: LQThinh (09/12/2025)
-   */
-  const handleClickOutside = (event) => {
-    if (activeHeaderMenu.value || activeFilterMenu.value) {
-      activeHeaderMenu.value = null;
-      activeFilterMenu.value = null;
-    }
-    if (activeRowActionMenu.value !== null) {
-      activeRowActionMenu.value = null;
-    }
-  };
   document.addEventListener("click", handleClickOutside);
 });
 </script>
@@ -547,21 +654,12 @@ onMounted(() => {
 }
 
 /* --- Filter Icon --- */
-.filter-icon-container {
+.filter-icon-container .icon_filter--default {
   opacity: 0;
   transition: opacity 150ms ease-in-out;
 }
-.ms-th.has-filter:hover .filter-icon-container {
+.ms-th.has-filter:hover .filter-icon-container .icon_filter--default {
   opacity: 1;
-}
-.filter-icon {
-  height: 1rem;
-  width: 1rem;
-  color: #6b7280;
-  transition: color 150ms ease-in-out;
-}
-.filter-icon:hover {
-  color: #4b5563;
 }
 
 /* --- Header Menu (Sắp xếp, Ghim) --- */

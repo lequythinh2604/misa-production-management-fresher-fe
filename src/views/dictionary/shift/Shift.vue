@@ -18,7 +18,7 @@
             </template>
           </ms-input>
           <!-- đã chọn, bỏ chọn, xóa,... -->
-          <div v-if="isAnySelected" class="flex justify-between items-center gap-2">
+          <div v-if="isAnySelected" class="flex items-center gap-2">
             <div class="min-w-[60px]">
               Đã chọn <span class="font-bold">{{ selectedCount }}</span>
             </div>
@@ -47,6 +47,35 @@
               Xóa
             </ms-button>
           </div>
+          <!-- chi tiết filter -->
+          <div
+            v-else-if="workShiftFilterRequest.filterColumn.length > 0"
+            class="filter-conditions h-full"
+          >
+            <div
+              v-for="(filter, index) in workShiftFilterRequest.filterColumn"
+              :key="filter.columnName"
+            >
+              <div class="filter-item">
+                <div class="flex items-center gap-2">
+                  <span>{{ getColumTitleByField(filter.columnName) }}</span>
+                  <span style="color: #009b71">{{ labels[index] }}</span>
+                  <span>{{ filter.filterValue }}</span>
+                </div>
+                <div
+                  class="icon_close icon-16 cursor-pointer"
+                  @click.stop="handleCancelFilter(filter.columnName)"
+                ></div>
+              </div>
+            </div>
+            <ms-button
+              type="text"
+              class="text-delete-all-filter"
+              @click.stop="handleCancelAllFilter"
+            >
+              Bỏ lọc
+            </ms-button>
+          </div>
         </div>
         <ms-button
           v-if="!isAnySelected"
@@ -65,11 +94,15 @@
           :columns="workShiftColumns"
           :data="workShiftStore.workShifts"
           :loading="isLoading"
+          :sortColumn="workShiftFilterRequest.sortColumn"
+          :filterColumn="workShiftFilterRequest.filterColumn"
           @openEdit="handleOpenEditPopup"
           @doubleClickRow="handleDoubleClickRow"
           @action="handleAction"
           @update:selectedRows="handleSelectedRows"
           @sort="handleSort"
+          @filterColumn="handleFilterColumn"
+          @cancelFilterColumn="handleCancelFilter"
         >
           <template #workShiftStatus="{ rowData }">
             <div class="status-badge" :class="getStatusClass(rowData.workShiftStatus)">
@@ -110,7 +143,7 @@ import ShiftPopup from "./ShiftPopup.vue";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import WorkShiftsAPI from "@/apis/components/WorkShiftsAPI";
 import { STATUS, STATUS_CODE } from "@/enums/Enum";
-import { extractTime, formatDateDDMMYYYY } from "@/utils/DateTimeFns";
+import { extractTime, formatDateDDMMYYYY } from "@/utils/dateTimeFns";
 import { useWorkShiftStore } from "@/stores/workShiftStore";
 import { Modal } from "ant-design-vue";
 
@@ -120,18 +153,46 @@ const workShiftStore = useWorkShiftStore();
 // state
 const msTableRef = ref(null);
 const workShiftColumns = ref([
-  { title: "Mã ca", field: "workShiftCode", minWidth: "120px", align: "left", filterable: true },
-  { title: "Tên ca", field: "workShiftName", minWidth: "250px", align: "left", filterable: true },
-  { title: "Giờ vào ca", field: "startTime", minWidth: "130px", align: "left" },
-  { title: "Giờ hết ca", field: "endTime", minWidth: "130px", align: "left" },
-  { title: "Bắt đầu nghỉ giữa ca", field: "breakStart", minWidth: "200px", align: "left" },
-  { title: "Kết thúc nghỉ giữa ca", field: "breakEnd", wiminWidthth: "200px", align: "left" },
+  {
+    title: "Mã ca",
+    field: "workShiftCode",
+    minWidth: "120px",
+    align: "left",
+    filterable: true,
+    sortable: true,
+  },
+  {
+    title: "Tên ca",
+    field: "workShiftName",
+    minWidth: "250px",
+    align: "left",
+    filterable: true,
+    sortable: true,
+  },
+  { title: "Giờ vào ca", field: "startTime", minWidth: "130px", align: "left", sortable: true },
+  { title: "Giờ hết ca", field: "endTime", minWidth: "130px", align: "left", sortable: true },
+  {
+    title: "Bắt đầu nghỉ giữa ca",
+    field: "breakStart",
+    minWidth: "200px",
+    align: "left",
+    sortable: true,
+  },
+  {
+    title: "Kết thúc nghỉ giữa ca",
+    field: "breakEnd",
+    minWidth: "200px",
+    align: "left",
+    sortable: true,
+  },
   {
     title: "Thời gian làm việc (giờ)",
     field: "workingHours",
     minWidth: "210px",
     align: "right",
     filterable: true,
+    filterType: "number",
+    sortable: true,
   },
   {
     title: "Thời gian nghỉ giữa ca (giờ)",
@@ -139,6 +200,8 @@ const workShiftColumns = ref([
     minWidth: "230px",
     align: "right",
     filterable: true,
+    filterType: "number",
+    sortable: true,
   },
   {
     title: "Trạng thái",
@@ -146,16 +209,40 @@ const workShiftColumns = ref([
     minWidth: "200px",
     align: "left",
     filterable: true,
+    filterType: "enum",
+    sortable: true,
   },
-  { title: "Người tạo", field: "createdBy", minWidth: "160px", align: "left", filterable: true },
-  { title: "Ngày tạo", field: "createdDate", minWidth: "160px", align: "left", filterable: true },
-  { title: "Ngày sửa", field: "modifiedBy", minWidth: "160px", align: "left", filterable: true },
+  {
+    title: "Người tạo",
+    field: "createdBy",
+    minWidth: "160px",
+    align: "left",
+    filterable: true,
+    sortable: true,
+  },
+  {
+    title: "Ngày tạo",
+    field: "createdDate",
+    minWidth: "160px",
+    align: "left",
+    filterable: true,
+    sortable: true,
+  },
+  {
+    title: "Ngày sửa",
+    field: "modifiedBy",
+    minWidth: "160px",
+    align: "left",
+    filterable: true,
+    sortable: true,
+  },
   {
     title: "Ngày sửa",
     field: "modifiedDate",
     minWidth: "160px",
     align: "left",
     filterable: true,
+    sortable: true,
   },
 ]);
 const isLoading = ref(true);
@@ -164,6 +251,7 @@ let timeoutId = null;
 const isShowPopup = ref(false);
 const initialData = ref(null);
 const selectedWorkShifts = ref([]);
+const labels = ref([]);
 // data
 const workShiftFilterRequest = {
   page: 1,
@@ -175,6 +263,7 @@ const workShiftFilterRequest = {
 
 /**
  * Tính toán row selected
+ * Created by: LQThinh (10/12/2025)
  */
 const selectedCount = computed(() => selectedWorkShifts.value.length);
 const isAnySelected = computed(() => selectedCount.value > 0);
@@ -194,7 +283,7 @@ const canInactivate = computed(() => {
 });
 /**
  * Đóng/mở popup
- * @param value - trạng thái form
+ * @param {boolean} value - trạng thái form
  * Created by: LQThinh (09/12/2025)
  */
 const setPopupVisible = (value) => {
@@ -202,7 +291,7 @@ const setPopupVisible = (value) => {
 };
 /**
  * Hàm call api get paging
- * @param payload
+ * @param {object} payload
  * Created by: LQThinh (06/12/2025)
  */
 const getPaging = async (payload) => {
@@ -235,7 +324,7 @@ const getPaging = async (payload) => {
 };
 /**
  * Hàm call api get by id
- * @param id
+ * @param {string} id
  * Created by: LQThinh (09/12/2025)
  */
 const getById = async (id) => {
@@ -259,7 +348,7 @@ const getById = async (id) => {
 };
 /**
  * Hàm call api cập nhật trạng thái ca làm việc
- * @param payload
+ * @param {object} payload
  * Created by: LQThinh (10/12/2025)
  */
 const updateStatus = async (payload) => {
@@ -278,7 +367,7 @@ const updateStatus = async (payload) => {
 
 /**
  * Hàm call api xóa ca làm việc
- * @param payload
+ * @param {object} payload
  * Created by: LQThinh (10/12/2025)
  */
 const deleteShift = async (payload) => {
@@ -330,16 +419,15 @@ const handleShiftSave = (newShiftData) => {
 
 /**
  * Hàm set trạng thái loading
- * @param value - trạng thái loading
+ * @param {boolean} value - trạng thái loading
  * Created by: LQThinh (06/12/2025)
  */
 const setLoading = (value) => {
   isLoading.value = value;
 };
-
 /**
  * Hàm style cho trạng thái
- * @param status
+ * @param {string} status -
  * Created by: LQThinh (06/12/2025)
  */
 const getStatusClass = (status) => {
@@ -350,7 +438,6 @@ const getStatusClass = (status) => {
   }
   return "";
 };
-
 /**
  * Xử lý sự kiện thay đổi trang
  * @param {number} newPage - page mới
@@ -360,7 +447,6 @@ const handlePageChange = (newPage) => {
   workShiftFilterRequest.page = newPage;
   getPaging(workShiftFilterRequest);
 };
-
 /**
  * Xử lý sự kiện thay đổi pageSize
  * @param {number} pageSize - pageSize
@@ -371,7 +457,6 @@ const handlePageSizeChange = (pageSize) => {
   workShiftFilterRequest.page = 1;
   getPaging(workShiftFilterRequest);
 };
-
 /**
  * Hàm tìm kiếm theo keyword
  * @param {string} keyword - từ khóa tìm kiếm
@@ -388,7 +473,6 @@ watch(keyword, (newKeyword) => {
     getPaging(workShiftFilterRequest);
   }, 500);
 });
-
 /**
  * Hàm reload data
  * Created by: LQThinh (06/12/2025)
@@ -396,7 +480,6 @@ watch(keyword, (newKeyword) => {
 const handleReload = () => {
   getPaging(workShiftFilterRequest);
 };
-
 /**
  * Hàm mở popup thêm ca làm việc
  * Created by: LQThinh (09/12/2025)
@@ -405,17 +488,15 @@ const handleOpenAddPopup = () => {
   initialData.value = null;
   setPopupVisible(true);
 };
-
 /**
  * Hàm mở popup sửa ca làm việc
- * @param row - dữ liệu row
+ * @param {object} row - dữ liệu row
  * Created by: LQThinh (09/12/2025)
  */
 const handleOpenEditPopup = async (row) => {
   await getById(row.workShiftId);
   setPopupVisible(true);
 };
-
 /**
  * Xử lý sự kiện Double-click vào row
  * @param {object} row - row đc click
@@ -425,7 +506,6 @@ const handleDoubleClickRow = async (row) => {
   await getById(row.workShiftId);
   setPopupVisible(true);
 };
-
 /**
  * Xử lý các hành động (Nhân bản, Sử dụng, Xóa)
  * @param {string} action - Hành động được chọn
@@ -433,7 +513,6 @@ const handleDoubleClickRow = async (row) => {
  * Created by: LQThinh (10/12/2025)
  */
 const handleAction = (action, row) => {
-  console.log(action, row);
   switch (action) {
     case "duplicate":
       handleDuplicate(row);
@@ -448,7 +527,6 @@ const handleAction = (action, row) => {
       break;
   }
 };
-
 /**
  * Xử lý nhân bản ca làm việc
  * @param {object} row - Dữ liệu của row
@@ -522,8 +600,8 @@ const handleUnselectAll = () => {
 };
 /**
  * Hàm cập nhật trạng thái hàng loạt
- * @param selectedWorkShifts - các row đc chọn
- * @param status
+ * @param {Array} selectedWorkShifts - các row đc chọn
+ * @param {boolean} status
  */
 const handleUpdateStatusBatch = async (rows, status) => {
   const payload = {
@@ -534,8 +612,9 @@ const handleUpdateStatusBatch = async (rows, status) => {
 };
 /**
  * Hàm xóa hàng loạt
- * @param selectedWorkShifts - các row đc chọn
- * @param status
+ * @param {Array} selectedWorkShifts - các row đc chọn
+ * @param {boolean} status
+ * Created by: LQThinh (10/12/2025)
  */
 const handleDeleteBatch = async (rows) => {
   const payload = {
@@ -556,12 +635,19 @@ const handleDeleteBatch = async (rows) => {
     centered: true,
   });
 };
-
+/**
+ * Sắp xếp nhiều cột
+ * @param {string} field - cột
+ * @param {string} direction - hướng sắp xếp
+ * Created by: LQThinh (10/12/2025)
+ */
 const handleSort = async (field, direction) => {
-  if (direction === "NONE") {
-    const index = workShiftFilterRequest.sortColumn.findIndex((item) => item.selector === field);
-    if (index > -1) {
+  const index = workShiftFilterRequest.sortColumn.findIndex((item) => item.selector === field);
+  if (index > -1) {
+    if (direction === "NONE") {
       workShiftFilterRequest.sortColumn.splice(index, 1);
+    } else {
+      workShiftFilterRequest.sortColumn[index].desc = direction === "DESC";
     }
   } else {
     workShiftFilterRequest.sortColumn.push({
@@ -570,11 +656,72 @@ const handleSort = async (field, direction) => {
     });
   }
 
-  console.log(workShiftFilterRequest);
+  await getPaging(workShiftFilterRequest);
 };
-
+/**
+ * Lọc nhiều cột
+ * @param {object} col - cột
+ * Created by: LQThinh (10/12/2025)
+ */
+const handleFilterColumn = async (col, filterOperator, filterValue, label) => {
+  if (col.filterType === "enum") {
+    if (!filterOperator) return;
+  }
+  if (!filterValue) return;
+  const index = workShiftFilterRequest.filterColumn.findIndex(
+    (item) => item.columnName === col.field
+  );
+  if (index > -1) {
+    workShiftFilterRequest.filterColumn[index].filterOperator = filterOperator;
+    workShiftFilterRequest.filterColumn[index].filterValue = filterValue;
+    labels.value[index] = label;
+  } else {
+    workShiftFilterRequest.filterColumn.push({
+      columnName: col.field,
+      filterOperator: filterOperator,
+      filterValue: filterValue,
+    });
+    labels.value.push(label);
+  }
+  getPaging(workShiftFilterRequest);
+};
+/**
+ * Lấy tên cột theo field
+ * @param {string} field
+ * Created by: LQThinh (11/12/2025)
+ */
+const getColumTitleByField = (field) => {
+  const col = workShiftColumns.value.find((col) => col.field === field);
+  return col ? col.title : "";
+};
+/**
+ * Hủy lọc theo cột
+ * @param {object} filter - điều kiện lọc
+ * Created by: LQThinh (11/12/2025)
+ */
+const handleCancelFilter = async (columnName) => {
+  const index = workShiftFilterRequest.filterColumn.findIndex(
+    (item) => item.columnName === columnName
+  );
+  if (index > -1) {
+    workShiftFilterRequest.filterColumn.splice(index, 1);
+    labels.value.splice(index, 1);
+    await getPaging(workShiftFilterRequest);
+    msTableRef.value.filterValue = null;
+  }
+};
+/**
+ * Hủy tất cả điều kiện lọc
+ * Created by: LQThinh (11/12/2025)
+ */
+const handleCancelAllFilter = async () => {
+  workShiftFilterRequest.filterColumn = [];
+  labels.value = [];
+  await getPaging(workShiftFilterRequest);
+};
 /**
  * Gọi API khi component được mount
+ * Created by: LQThinh (09/12/2025)
  */
 onMounted(() => {
   getPaging(workShiftFilterRequest);
@@ -586,7 +733,7 @@ onMounted(() => {
   height: 30px;
 }
 .tool-box {
-  height: 44px;
+  /* height: 44px; */
   padding: 8px 16px;
   background: #fff;
   border-top-left-radius: 4px;
@@ -604,11 +751,26 @@ onMounted(() => {
   padding: 5px 8px;
   border-radius: 999px;
 }
-
 .status-badge.inactive {
   background-color: #fee2e2;
   color: #dc2626;
   padding: 5px 8px;
   border-radius: 999px;
+}
+.filter-conditions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-height: 56px;
+  overflow-y: auto;
+  margin-right: 8px;
+}
+.filter-item {
+  display: flex;
+  gap: 8px;
+  background-color: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 </style>

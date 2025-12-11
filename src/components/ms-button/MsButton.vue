@@ -148,7 +148,6 @@ const props = defineProps({
 .btn__content {
   white-space: nowrap;
 }
-
 .btn__icon {
   display: inline-flex;
   align-items: center;
@@ -164,5 +163,9 @@ const props = defineProps({
 }
 .no-padding {
   padding: 0;
+}
+.text-delete-all-filter {
+  color: #f06666;
+  white-space: nowrap;
 }
 </style>

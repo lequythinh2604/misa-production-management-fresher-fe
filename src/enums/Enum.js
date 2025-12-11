@@ -7,6 +7,6 @@ export const STATUS_CODE = {
 };
 
 export const STATUS = {
-    ACTIVE: "Đang hoạt động",
-    INACTIVE: "Ngừng hoạt động",
+    ACTIVE: "Đang sử dụng",
+    INACTIVE: "Ngừng sử dụng",
 };

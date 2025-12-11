@@ -132,6 +132,7 @@
               tabIndex="-1"
               isDisabled
               placeholderAlign="right"
+              :isWarning="isWarning"
             ></ms-input>
           </div>
           <div class="form-group w-1/2">
@@ -210,7 +211,7 @@ import MsButton from "@/components/ms-button/MsButton.vue";
 import MsInput from "@/components/ms-input/MsInput.vue";
 import MsTimePicker from "@/components/ms-timepicker/MsTimePicker.vue";
 import MsTextarea from "@/components/ms-textarea/MsTextarea.vue";
-import { convertTimeToISO } from "@/utils/DateTimeFns";
+import { convertTimeToISO } from "@/utils/dateTimeFns";
 import WorkShiftsAPI from "@/apis/components/WorkShiftsAPI";
 import { STATUS_CODE } from "@/enums/Enum";
 import { message, Modal } from "ant-design-vue";
@@ -247,6 +248,7 @@ const firstInput = ref(null);
 const popup = ref(null);
 const isLoading = ref(false);
 const isClose = ref(false);
+const isWarning = ref(false);
 
 /**
  * Tính mode(thêm, sửa) cho popup
@@ -311,8 +313,18 @@ watch(
     // Tính thời gian làm việc thực tế: Tổng ca - Tổng nghỉ
     if (totalShiftDuration && totalBreakDuration) {
       const workHours = parseFloat(totalShiftDuration) - parseFloat(totalBreakDuration);
-      formData.value.workingHours =
-        workHours > 0 ? workHours.toFixed(2).replace(/\.?0+$/, "") : "0";
+      if (workHours < 0) {
+        formData.value.workingHours =
+          "(" +
+          Math.abs(workHours)
+            .toFixed(2)
+            .replace(/\.?0+$/, "") +
+          ")";
+        isWarning.value = true;
+      } else {
+        formData.value.workingHours = workHours.toFixed(2).replace(/\.?0+$/, "");
+        isWarning.value = false;
+      }
     } else {
       formData.value.workingHours = totalShiftDuration;
     }
