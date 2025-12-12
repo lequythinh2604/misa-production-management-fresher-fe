@@ -47,7 +47,7 @@ export const useWorkShiftStore = defineStore('workShift', {
      * Created by: LQThinh (10/12/2025)
      */
     updateStatusBatch(payload) {
-      const idSet = new Set(payload.workShiftIds);
+      const idSet = new Set(payload.ids);
       this.workShifts.forEach(shift => {
         if (idSet.has(shift.workShiftId)) {
           if (payload.newStatus) {

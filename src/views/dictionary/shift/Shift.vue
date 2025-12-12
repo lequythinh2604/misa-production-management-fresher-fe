@@ -301,7 +301,7 @@ const getPaging = async (payload) => {
   try {
     const response = await WorkShiftsAPI.paging(payload);
     if (response.data.code === STATUS_CODE.OK) {
-      const formattedData = response.data.data.map((shift) => {
+      const formattedData = response.data.data.items.map((shift) => {
         return {
           ...shift,
           startTime: extractTime(shift.startTime),
@@ -314,7 +314,7 @@ const getPaging = async (payload) => {
         };
       });
 
-      workShiftStore.setWorkShifts(formattedData, response.data.meta.totalCount);
+      workShiftStore.setWorkShifts(formattedData, response.data.data.totalCount);
     }
   } catch (error) {
     console.error("Lỗi khi gọi API phân trang ca làm việc:", error);
@@ -356,7 +356,7 @@ const updateStatus = async (payload) => {
   try {
     const response = await WorkShiftsAPI.updateMultipleStatus(payload);
     if (response.data.code === STATUS_CODE.OK) {
-      if (response.data.data === payload.workShiftIds?.length) {
+      if (response.data.data === payload.ids?.length) {
         workShiftStore.updateStatusBatch(payload);
       }
     }
@@ -375,8 +375,8 @@ const deleteShift = async (payload) => {
   try {
     const response = await WorkShiftsAPI.deleteMultiple(payload);
     if (response.data.code === STATUS_CODE.OK) {
-      if (response.data.data === payload.workShiftIds?.length) {
-        workShiftStore.deleteBatch(payload.workShiftIds);
+      if (response.data.data === payload.length) {
+        workShiftStore.deleteBatch(payload);
       }
     }
   } catch (error) {
@@ -390,6 +390,8 @@ const deleteShift = async (payload) => {
  * Created by: LQThinh (09/12/2025)
  */
 const handleShiftSave = (newShiftData) => {
+  console.log(newShiftData);
+
   const formattedShift = {
     ...newShiftData,
     startTime: extractTime(newShiftData.startTime),
@@ -552,7 +554,7 @@ const handleDuplicate = async (row) => {
  */
 const handleUpdateStatus = async (row) => {
   const payload = {
-    workShiftIds: [row.workShiftId],
+    ids: [row.workShiftId],
     newStatus: row.workShiftStatus === STATUS.ACTIVE ? false : true,
   };
   await updateStatus(payload);
@@ -563,9 +565,7 @@ const handleUpdateStatus = async (row) => {
  * Created by: LQThinh (10/12/2025)
  */
 const handleDelete = async (row) => {
-  const payload = {
-    workShiftIds: [row.workShiftId],
-  };
+  const payload = [row.workShiftId];
 
   Modal.confirm({
     title: "Xóa Ca làm việc",
@@ -605,7 +605,7 @@ const handleUnselectAll = () => {
  */
 const handleUpdateStatusBatch = async (rows, status) => {
   const payload = {
-    workShiftIds: rows.map((r) => r.workShiftId),
+    ids: rows.map((r) => r.workShiftId),
     newStatus: status,
   };
   await updateStatus(payload);
@@ -617,9 +617,7 @@ const handleUpdateStatusBatch = async (rows, status) => {
  * Created by: LQThinh (10/12/2025)
  */
 const handleDeleteBatch = async (rows) => {
-  const payload = {
-    workShiftIds: rows.map((r) => r.workShiftId),
-  };
+  const payload = rows.map((r) => r.workShiftId);
 
   Modal.confirm({
     title: "Xóa Ca làm việc",
@@ -666,8 +664,15 @@ const handleSort = async (field, direction) => {
 const handleFilterColumn = async (col, filterOperator, filterValue, label) => {
   if (col.filterType === "enum") {
     if (!filterOperator) return;
+  } else {
+    if (!filterValue) return;
   }
-  if (!filterValue) return;
+
+  // convert filterValue
+  if (col.filterType === "number" && filterValue !== null) {
+    filterValue = parseFloat(filterValue);
+  }
+
   const index = workShiftFilterRequest.filterColumn.findIndex(
     (item) => item.columnName === col.field
   );
@@ -683,6 +688,7 @@ const handleFilterColumn = async (col, filterOperator, filterValue, label) => {
     });
     labels.value.push(label);
   }
+
   getPaging(workShiftFilterRequest);
 };
 /**

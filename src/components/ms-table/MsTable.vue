@@ -178,7 +178,7 @@
                   <slot :name="col.field" :rowData="row"></slot>
                 </template>
                 <template v-else>
-                  {{ row[col.field] || "-" }}
+                  <div class="truncate">{{ row[col.field] || "-" }}</div>
                 </template>
               </td>
 
@@ -450,12 +450,19 @@ const handleHeaderClick = (col) => {
  */
 const toggleFilterMenu = (col) => {
   if (!col.filterable) return;
-  filterValue.value = null;
   if (activeFilterMenu.value === col.field) {
     activeFilterMenu.value = null;
   } else {
     activeFilterMenu.value = col.field;
     activeHeaderMenu.value = null;
+
+    const existedFilter = props.filterColumn.find((item) => item.columnName === col.field);
+    if (existedFilter) {
+      filterOperator.value = existedFilter.filterOperator;
+      filterValue.value = existedFilter.filterValue;
+    } else {
+      filterValue.value = null;
+    }
   }
 };
 /**

@@ -399,18 +399,18 @@ const addNewWorkShift = async (formData) => {
       workShiftCode: formData.value.workShiftCode,
       workShiftName: formData.value.workShiftName,
       description: formData.value.description,
-      startTime: convertTimeToISO(formData.value.startTime),
-      endTime: convertTimeToISO(formData.value.endTime),
-      breakStart: convertTimeToISO(formData.value.breakStart),
-      breakEnd: convertTimeToISO(formData.value.breakEnd),
+      startTime: convertTimeToISO(formData.value.startTime) || null,
+      endTime: convertTimeToISO(formData.value.endTime) || null,
+      breakStart: convertTimeToISO(formData.value.breakStart) || null,
+      breakEnd: convertTimeToISO(formData.value.breakEnd) || null,
       workingHours: parseFloat(formData.value.workingHours) || 0,
       breakHours: parseFloat(formData.value.breakHours) || 0,
       workShiftStatus: formData.value.workShiftStatus,
     };
 
     const response = await WorkShiftsAPI.add(payload);
-    if (response.data.code === STATUS_CODE.CREATED) {
-      message.success(response.data.systemMessage || "");
+    if (response.data.code === STATUS_CODE.OK) {
+      message.success(response.data.userMessage || "");
       emit("save", response.data.data);
       if (isClose.value) {
         handleClose();
@@ -420,17 +420,15 @@ const addNewWorkShift = async (formData) => {
     }
   } catch (error) {
     console.error("Lỗi khi gọi API thêm ca làm việc:", error);
-    if (error.response.data.Code === STATUS_CODE.VALIDATION) {
-      const errorData = error.response.data.Data;
-      if (errorData) {
-        const errorMess = Object.values(errorData);
-        Modal.warning({
-          title: "Cảnh báo",
-          content: errorMess[0],
-          okText: "Đóng",
-          centered: true,
-        });
-      }
+    const errorData = error.response.data;
+    if (errorData.Code === STATUS_CODE.VALIDATION || errorData.Code === STATUS_CODE.CONFLICT) {
+      const errorMess = Object.values(errorData.ValidateInfo);
+      Modal.warning({
+        title: "Cảnh báo",
+        content: errorMess[0],
+        okText: "Đóng",
+        centered: true,
+      });
     }
   } finally {
     setLoading(false);
@@ -461,7 +459,7 @@ const updateWorkShift = async (id, formData) => {
 
     const response = await WorkShiftsAPI.update(id, payload);
     if (response.data.code === STATUS_CODE.OK) {
-      message.success(response.data.systemMessage || "");
+      message.success(response.data.userMessage || "");
       emit("save", response.data.data);
       if (isClose.value) {
         handleClose();
@@ -471,16 +469,15 @@ const updateWorkShift = async (id, formData) => {
     }
   } catch (error) {
     console.error("Lỗi khi gọi API sửa ca làm việc:", error);
-    if (error.response.data.Code === STATUS_CODE.VALIDATION) {
-      const errorData = error.response.data.Data;
-      if (errorData) {
-        const errorMess = Object.values(errorData);
-        Modal.warning({
-          title: "Cảnh báo",
-          content: errorMess[0],
-          okText: "Đóng",
-        });
-      }
+    const errorData = error.response.data;
+    if (errorData.Code === STATUS_CODE.VALIDATION || errorData.Code === STATUS_CODE.CONFLICT) {
+      const errorMess = Object.values(errorData.ValidateInfo);
+      Modal.warning({
+        title: "Cảnh báo",
+        content: errorMess[0],
+        okText: "Đóng",
+        centered: true,
+      });
     }
   } finally {
     setLoading(false);
